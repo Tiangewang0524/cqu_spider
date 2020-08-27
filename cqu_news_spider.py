@@ -19,6 +19,8 @@ import Ac_auto
 # 爬取的地址和名称
 spider_url = 'https://news.cqu.edu.cn/newsv2/'
 spider_name = '重大新闻网'
+# 每页最大爬取新闻数
+i_news = 1
 # 睡眠时间
 sleep_time = 0.1
 # mysql登录信息
@@ -58,10 +60,17 @@ dict_news = {'网站名称': spider_name, '网站域名': spider_url, '所属栏
              '采集时间': '', '采集人': '档案馆'}
 # 媒体重大
 dict_media = dict()
+dict_media = {'网站名称': spider_name, '网站域名': spider_url, '所属栏目': '', '标题': '', '发布时间': '', '来源（转载来源）': '',
+              '关键词': '', '作者所属单位': '', '作者': '', '摘要': '', '网址': '', '具体新闻内容': '', '采集时间': '', '采集人': '档案馆'}
 # 通知公告简报
 dict_notice = dict()
+dict_notice = {'网站名称': spider_name, '网站域名': spider_url, '所属栏目': '', '标题': '', '发布时间': '', '关键词': '',
+               '网址': '', '具体内容': '', '责任编辑': '', '附件名称': '', '附件地址': '', '采集时间': '', '采集人': '档案馆'}
 # 学术预告
 dict_academic = dict()
+dict_academic = {'网站名称': spider_name, '网站域名': spider_url, '所属栏目': '', '标题': '', '副标题': '', '发生时间（讲座时间）': '',
+                 '地点': '', '主讲人': '', '关键词': '', '作者所属部门': '', '作者': '', '网址': '', '具体内容': '', '责任编辑': '',
+                 '采集时间': '', '采集人': '档案馆'}
 # 快讯
 dict_express = dict()
 dict_express = {'网站名称': spider_name, '网站域名': spider_url, '所属栏目': '', '标题': '', '发布时间': '',
@@ -70,12 +79,11 @@ dict_express = {'网站名称': spider_name, '网站域名': spider_url, '所属
 dict_topic = dict()
 dict_topic = {'网站名称': spider_name, '网站域名': spider_url, '所属栏目': '', '标题': '', '网址': '', '采集时间': '', '采集人': '档案馆'}
 
+
 # pdfkit配置
 confg = pdfkit.configuration(wkhtmltopdf=r'C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe')
 
 
-# 每页最大爬取新闻数
-i_news = 1
 # 伪装http请求头部
 headers = {
     'User-Agent':
@@ -83,14 +91,42 @@ headers = {
 }
 
 
+# 从数据库配置表里获取xpath, 并解析获取内容
+def get_xpath_content(html, xpath_name):
+    # 去掉空格字符串函数
+    def not_empty(s):
+        return s and s.strip()
+
+    cur.execute("SELECT xpath FROM t_spider_config_xpath WHERE name = %s", xpath_name)
+    xpath = cur.fetchone()
+    xpath = xpath[0]
+
+    content = html.xpath(xpath)
+
+    # 对content做处理, 元素小于2的处理成字符串, 并去掉首尾多余的空格, 大于2的去掉空格字符串
+    if len(content) < 2:
+        content = ''.join(content)
+        content = content.strip()
+    else:
+        content = list(filter(not_empty, content))
+
+    return content
+
+
+# 获取配置表的id，赋值给结果表
+def get_conf_id():
+    cur.execute("SELECT id FROM t_spider_conf WHERE domain = %s", spider_url)
+    conf_id = cur.fetchone()
+    conf_id = conf_id[0]
+
+    return conf_id
+
+
 # 插入config_xpath表
 def insert_table(xpath, name):
     time_now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-    # 获取配置表的id，赋值给config_xpath表
-    cur.execute("SELECT id FROM t_spider_conf WHERE domain = %s", spider_url)
-    conf_id = cur.fetchone()
-    conf_id = conf_id[0]
+    conf_id = get_conf_id()
 
     cur.execute(insert_config_xpath, (conf_id, xpath, name, time_now))
     conn.commit()
@@ -109,12 +145,40 @@ def config_xpath_initialization():
     insert_table('//*[@class="content w100"]/div[@class="rdate"]/text()', '快讯发布时间xpath')
     insert_table('//*[@class="content w100"]/div[@class="title"]/a/text()', '快讯标题xpath')
     insert_table('//*[@class="content w100"]/div[@class="abstract1"]/text()', '快讯内容xpath')
+    insert_table('//*[@class="content w100"]/div[@class="title"]/a/@href', '链接xpath')
+    insert_table('//*[@class="dtitle"]/text()', '标题xpath')
+    insert_table('/html/body/div[@class="row"]/div[@class="container newslist"]/div[@class="container detail"]'
+                 '/div[@class="content"]/div[@class="acontent"]/h3/text()', '讲座副标题xpath')
+    insert_table('/html/body/div[@class="row"]/div[@class="container newslist"]/div[@class="container detail"]'
+                 '/div[@class="content"]/div[@class="dinfo"]/p[1]/text()', '讲座发生时间（讲座时间）xpath')
+    insert_table('/html/body/div[@class="row"]/div[@class="container newslist"]/div[@class="container detail"]'
+                 '/div[@class="content"]/div[@class="dinfo"]/p[2]/text()', '讲座地点xpath')
+    insert_table('/html/body/div[@class="row"]/div[@class="container newslist"]/div[@class="container detail"]'
+                 '/div[@class="content"]/div[@class="acontent"]/p[1]/text()', '讲座主讲人xpath')
+    insert_table('//*[@class="afooter"]/div[@class="tags"]/a/text()', '关键词xpath')
+    insert_table('/html/body/div[@class="row"]/div[@class="container newslist"]/div[@class="container detail"]'
+                 '/div[@class="content"]/div[@class="dinfo"]/div[@class="dinfoa"]/p[1]/a[1]/text()', '讲座作者所属部门xpath')
+    insert_table('/html/body/div[@class="row"]/div[@class="container newslist"]/div[@class="container detail"]'
+                 '/div[@class="content"]/div[@class="dinfo"]/div[@class="dinfoa"]/p[1]/a[2]/text()', '讲座作者xpath')
+    insert_table('//*[@class="acontent"]/p//text()', '具体内容xpath')
+    insert_table('//*[@class="dinfo"]/div[@class="dinfoa"]/p[2]/text()', '责任编辑xpath')
+    insert_table('/html/body/div[@class="row"]/div[@class="container detail"]/div[@class="content"]'
+                 '/div[@class="acontent"]/div/strong/text()[2]', '通知发布时间xpath')
+    insert_table('//*[@class="acontent"]/p[@style="line-height: 16px;"]/a/text()', '通知附件名称xpath')
+    insert_table('//*[@class="acontent"]/p[@style="line-height: 16px;"]/a/@href', '通知附件地址xpath')
     insert_table('', '')
     insert_table('', '')
     insert_table('', '')
     insert_table('', '')
     insert_table('', '')
-
+    insert_table('', '')
+    insert_table('', '')
+    insert_table('', '')
+    insert_table('', '')
+    insert_table('', '')
+    insert_table('', '')
+    insert_table('', '')
+    insert_table('', '')
 
 
 # 查找所有栏目的url（板块url），并保存
@@ -125,9 +189,7 @@ def all_urls_list():
     judge = judge[0]
     if not judge:
         # 获取配置表的id，赋值给结果表
-        cur.execute("SELECT id FROM t_spider_conf WHERE domain = %s", spider_url)
-        conf_id = cur.fetchone()
-        conf_id = conf_id[0]
+        conf_id = get_conf_id()
 
         time_now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         cur.execute(insert_result, (conf_id, 'index', spider_url, '', '', '', time_now, '重大新闻网', ''))
@@ -139,14 +201,10 @@ def all_urls_list():
     r.encoding = 'UTF-8'
     html = etree.HTML(r.text)
 
-    cur.execute("SELECT xpath from t_spider_config_xpath where name = %s", '所有栏目URL的xpath')
-    xpath = cur.fetchone()
-    xpath = xpath[0]
-
     news_heading_url_list = []
 
     try:
-        news_heading_url_list = html.xpath(xpath)
+        news_heading_url_list = get_xpath_content(html, '所有栏目URL的xpath')
         # 将主页的url去掉
         news_heading_url_list.remove(news_heading_url_list[0])
         # 增加快讯，专题两个板块
@@ -174,12 +232,8 @@ def get_url_list(url, all_urls):
     # 获取板块在news_heading_url_list的序号，并获取板块名称以及板块下总的新闻数目
     # 对 快讯板块做处理：
     if url == 'https://news.cqu.edu.cn/newsv2/list-15.html':
-        cur.execute("SELECT xpath FROM t_spider_config_xpath WHERE name = %s", '快讯栏目标题xpath')
-        xpath = cur.fetchone()
-        xpath = xpath[0]
-
         try:
-            news_heading = html.xpath(xpath)
+            news_heading = get_xpath_content(html, '快讯栏目标题xpath')
             news_heading = ''.join(news_heading)
             # print(news_heading)
         except IndexError:
@@ -224,9 +278,7 @@ def get_url_list(url, all_urls):
     judge = judge[0]
     if not judge:
         # 获取配置表的id，赋值给结果表
-        cur.execute("SELECT id FROM t_spider_conf WHERE domain = %s", spider_url)
-        conf_id = cur.fetchone()
-        conf_id = conf_id[0]
+        conf_id = get_conf_id()
 
         time_now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         cur.execute(insert_result, (conf_id, 'list', temp_url, '', '', '', time_now, news_heading, ''))
@@ -263,9 +315,7 @@ def get_topic_url_list(url):
     judge = judge[0]
     if not judge:
         # 获取配置表的id，赋值给结果表
-        cur.execute("SELECT id FROM t_spider_conf WHERE domain = %s", spider_url)
-        conf_id = cur.fetchone()
-        conf_id = conf_id[0]
+        conf_id = get_conf_id()
 
         time_now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         cur.execute(insert_result, (conf_id, 'list', url, '', '', '', time_now, news_heading, ''))
@@ -274,16 +324,8 @@ def get_topic_url_list(url):
         print('{} 栏目 记录已爬取过且保存在数据库中！'.format(news_heading))
 
     try:
-        cur.execute("SELECT xpath FROM t_spider_config_xpath WHERE name = %s", '专题链接xpath')
-        url_xpath = cur.fetchone()
-        url_xpath = url_xpath[0]
-
-        cur.execute("SELECT xpath FROM t_spider_config_xpath WHERE name = %s", '专题标题xpath')
-        name_xpath = cur.fetchone()
-        name_xpath = name_xpath[0]
-
-        topic_urls_list = html.xpath(url_xpath)
-        topic_names_list = html.xpath(name_xpath)
+        topic_urls_list = get_xpath_content(html, '专题链接xpath')
+        topic_names_list = get_xpath_content(html, '专题标题xpath')
         # print(topic_urls_list)
         # print(topic_names_list)
 
@@ -312,28 +354,275 @@ def get_topic_url_list(url):
     return url_dict
 
 
+# 读取新闻模块每个页面的url，获取新闻模块的每条新闻的归档元数据，并将页面转成pdf格式保存
 def get_news_info(url_list):
     pass
 
 
+# 读取媒体重大每个页面的url，获取媒体重大的每条新闻的归档元数据，并将页面转成pdf格式保存
 def get_media_info(url_list):
-    pass
+    # 获取配置表的id，赋值给结果表
+    conf_id = get_conf_id()
+
+    # 通知公告数累加器
+    sum_i = 0
+
+    # 通知公告简报页数计数器
+    page = 1
+
+    news_heading = '媒体重大'
+
+    # 创建文件夹
+    # 先判断文件夹是否存在，不存在则创建文件夹
+    new_dir = 'D:\\PycharmProjects\\cqu_spider' + '\\' + news_heading
+    dir_judge = os.path.exists(new_dir)
+    if not dir_judge:
+        os.mkdir(new_dir)
 
 
+# 读取通知公告简报每个页面的url，获取通知公告简报的每条新闻的归档元数据，并将页面转成pdf格式保存
 def get_notice_info(url_list):
-    pass
+    # 获取配置表的id，赋值给结果表
+    conf_id = get_conf_id()
+
+    # 通知公告数累加器
+    sum_i = 0
+
+    # 通知公告简报页数计数器
+    page = 1
+
+    news_heading = '通知公告简报'
+
+    dict_temp = dict_notice
+
+    # 创建文件夹
+    # 先判断文件夹是否存在，不存在则创建文件夹
+    new_dir = 'D:\\PycharmProjects\\cqu_spider' + '\\' + news_heading
+    dir_judge = os.path.exists(new_dir)
+    if not dir_judge:
+        os.mkdir(new_dir)
+
+    # 每一页的url
+    for url in url_list:
+
+        r = requests.get(url, headers=headers)
+        r.encoding = 'UTF-8'
+        raw_html = r.text
+        html = etree.HTML(raw_html)
+
+        links_list = get_xpath_content(html, '链接xpath')
+
+        # 每一条通知的url
+        for each_url in links_list:
+            # 存储每一个学术预告链接URL的记录，放进数据库，如果已经存在，则不存储
+            cur.execute("SELECT IFNULL((SELECT 1 from t_spider_result where url = %s limit 1), 0)", each_url)
+            judge = cur.fetchone()
+            judge = judge[0]
+            try:
+                if not judge:
+                    r = requests.get(each_url, headers=headers)
+                    r.encoding = 'UTF-8'
+                    raw_html = r.text
+                    html = etree.HTML(raw_html)
+
+                    judge_identifier = not_found_judge(raw_html)
+                    # 判断网页是不是404 not found
+                    if judge_identifier:
+                        html_filter = sensitive_word_filter(raw_html)
+                        timestamp = round(time.time())
+                        html_file = new_dir + '\\' + str(timestamp) + '.html'
+                        pdf_file = new_dir + '\\' + str(timestamp) + '.pdf'
+
+                        # 从数据库获取xpath, 并根据xpath获取内容
+                        try:
+                            title = get_xpath_content(html, '标题xpath')
+                            # 对跳转微信公众号文章的链接做处理
+                            if 'weixin' in each_url:
+                                title = html.xpath('//h2[@class="rich_media_title"]/text()')
+                                title = ''.join(title)
+                                title = title.strip()
+                            release_time = get_xpath_content(html, '通知发布时间xpath')
+                            keywords = get_xpath_content(html, '关键词xpath')
+                            content = get_xpath_content(html, '具体内容xpath')
+                            editor = get_xpath_content(html, '责任编辑xpath')
+                            attachment_name = get_xpath_content(html, '通知附件名称xpath')
+                            attachment_link = get_xpath_content(html, '通知附件地址xpath')
+                        except IndexError:
+                            print("xpath配置错误！")
+                        except etree.XPathEvalError:
+                            print("数据库里未找到记录！")
+
+                        # 更新字典，并转成json格式
+                        dict_notice['所属栏目'] = news_heading
+                        dict_notice['标题'] = title
+                        dict_notice['发布时间'] = release_time
+                        dict_notice['关键词'] = keywords
+                        dict_notice['网址'] = each_url
+                        dict_notice['具体内容'] = content
+                        dict_notice['责任编辑'] = editor
+                        dict_notice['附件名称'] = attachment_name
+                        dict_notice['附件地址'] = attachment_link
+
+                        time_now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                        dict_notice['采集时间'] = time_now
+                        json_dict = json.dumps(dict_notice, ensure_ascii=False, indent=4)
+                        print(json_dict)
+                        cur.execute(insert_result, (conf_id, 'detail', url, html_filter, html_file, pdf_file,
+                                                    time_now, news_heading, json_dict))
+                        conn.commit()
+                        sum_i += 1
+
+                        with open(html_file, 'w+', encoding='UTF-8') as f1:
+                            f1.write(html_filter)
+                        # html转pdf
+                        pdfkit.from_string(html_filter, pdf_file, configuration=confg)
+                        time.sleep(sleep_time)
+
+                    else:
+                        # 将404 not found 记录进数据库
+                        html_filter = '404 not found'
+                        dict_notice = dict_temp
+                        dict_notice['所属栏目'] = news_heading
+                        dict_notice['标题'] = html_filter
+                        dict_notice['网址'] = each_url
+                        time_now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                        dict_notice['采集时间'] = time_now
+                        json_dict = json.dumps(dict_notice, ensure_ascii=False, indent=4)
+                        print(json_dict)
+                        cur.execute(insert_result, (conf_id, 'detail', url, html_filter, '', '',
+                                                    time_now, news_heading, json_dict))
+                        conn.commit()
+                        sum_i += 1
+                else:
+                    print('{} 栏目 的 {} 通知 已爬取过且保存在数据库中！'.format(news_heading, page))
+            except IOError:
+                print("Warning: wkhtmltopdf读取文件失败, 可能是网页无法打开或者图片/css样式丢失。")
+            except IndexError:
+                print("该栏目《{}》下的通知公告简报已全部爬取完！".format(news_heading))
+                break
+
+        page += 1
+
+    print('{} 栏目下 共有{}页 {}条通知公告简报'.format(news_heading, page, sum_i))
 
 
+# 读取学术预告每个页面的url，获取学术预告的每条新闻的归档元数据，并将页面转成pdf格式保存
 def get_academic_info(url_list):
-    pass
+    # 获取配置表的id，赋值给结果表
+    conf_id = get_conf_id()
+
+    # 讲座数累加器
+    sum_i = 0
+
+    # 学术预告页数计数器
+    page = 1
+
+
+    news_heading = '学术预告'
+
+    # 创建文件夹
+    # 先判断文件夹是否存在，不存在则创建文件夹
+    new_dir = 'D:\\PycharmProjects\\cqu_spider' + '\\' + news_heading
+    dir_judge = os.path.exists(new_dir)
+    if not dir_judge:
+        os.mkdir(new_dir)
+
+    # 每一页的url
+    for url in url_list:
+
+        r = requests.get(url, headers=headers)
+        r.encoding = 'UTF-8'
+        raw_html = r.text
+        html = etree.HTML(raw_html)
+
+        # 筛选处理讲座链接
+        links_list = get_xpath_content(html, '链接xpath')
+        temp = []
+        for each in links_list:
+            if 'http' in each:
+                temp.append(each)
+        links_list = temp
+
+        # 每一条讲座的url
+        for each_url in links_list:
+            # 存储每一个学术预告链接URL的记录，放进数据库，如果已经存在，则不存储
+            cur.execute("SELECT IFNULL((SELECT 1 from t_spider_result where url = %s limit 1), 0)", each_url)
+            judge = cur.fetchone()
+            judge = judge[0]
+            try:
+                if not judge:
+                    r = requests.get(each_url, headers=headers)
+                    r.encoding = 'UTF-8'
+                    raw_html = r.text
+                    html = etree.HTML(raw_html)
+
+                    html_filter = sensitive_word_filter(raw_html)
+                    timestamp = round(time.time())
+                    html_file = new_dir + '\\' + str(timestamp) + '.html'
+                    pdf_file = new_dir + '\\' + str(timestamp) + '.pdf'
+
+                    # 从数据库获取xpath, 并根据xpath获取内容
+                    try:
+                        title = get_xpath_content(html, '标题xpath')
+                        subtitle = get_xpath_content(html, '讲座副标题xpath')
+                        lecture_time = get_xpath_content(html, '讲座发生时间（讲座时间）xpath')
+                        location = get_xpath_content(html, '讲座地点xpath')
+                        lecturer = get_xpath_content(html, '讲座主讲人xpath')
+                        keywords = get_xpath_content(html, '关键词xpath')
+                        department = get_xpath_content(html, '讲座作者所属部门xpath')
+                        author = get_xpath_content(html, '讲座作者xpath')
+                        content = get_xpath_content(html, '具体内容xpath')
+                        editor = get_xpath_content(html, '责任编辑xpath')
+                    except IndexError:
+                        print("xpath配置错误！")
+                    except etree.XPathEvalError:
+                        print("数据库里未找到记录！")
+
+                    # 更新字典，并转成json格式
+                    dict_academic['所属栏目'] = news_heading
+                    dict_academic['标题'] = title
+                    dict_academic['副标题'] = subtitle
+                    dict_academic['发生时间（讲座时间）'] = lecture_time
+                    dict_academic['地点'] = location
+                    dict_academic['主讲人'] = lecturer
+                    dict_academic['关键词'] = keywords
+                    dict_academic['作者所属部门'] = department
+                    dict_academic['作者'] = author
+                    dict_academic['网址'] = each_url
+                    dict_academic['具体内容'] = content
+                    dict_academic['责任编辑'] = editor
+
+                    time_now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    dict_academic['采集时间'] = time_now
+                    json_dict = json.dumps(dict_academic, ensure_ascii=False, indent=4)
+                    print(json_dict)
+                    cur.execute(insert_result, (conf_id, 'detail', url, html_filter, html_file, pdf_file,
+                                                time_now, news_heading, json_dict))
+                    conn.commit()
+                    sum_i += 1
+
+                    with open(html_file, 'w+', encoding='UTF-8') as f1:
+                        f1.write(html_filter)
+                    # html转pdf
+                    pdfkit.from_string(html_filter, pdf_file, configuration=confg)
+                    time.sleep(sleep_time)
+                else:
+                    print('{} 栏目 的 {} 讲座预告 已爬取过且保存在数据库中！'.format(news_heading, page))
+            except IOError:
+                print("Warning: wkhtmltopdf读取文件失败, 可能是网页无法打开或者图片/css样式丢失。")
+            except IndexError:
+                print("该栏目《{}》下的讲座预告已全部爬取完！".format(news_heading))
+                break
+
+        page += 1
+
+    print('{} 栏目下 共有{}页 {}条讲座预告'.format(news_heading, page, sum_i))
 
 
 # 读取快讯每个页面的url，获取快讯的每条新闻的归档元数据，并将页面转成pdf格式保存
 def get_express_info(url_list):
     # 获取配置表的id，赋值给结果表
-    cur.execute("SELECT id FROM t_spider_conf WHERE domain = %s", spider_url)
-    conf_id = cur.fetchone()
-    conf_id = conf_id[0]
+    conf_id = get_conf_id()
 
     # 快讯新闻数累加器
     sum_i = 0
@@ -372,20 +661,11 @@ def get_express_info(url_list):
 
                 # 解析快讯发布时间，标题，内容
                 release_time_list, title_list, content_list = [], [], []
-                cur.execute("SELECT xpath FROM t_spider_config_xpath WHERE name = %s", '快讯发布时间xpath')
-                release_time_xpath = cur.fetchone()
-                release_time_xpath = release_time_xpath[0]
-                cur.execute("SELECT xpath FROM t_spider_config_xpath WHERE name = %s", '快讯标题xpath')
-                title_xpath = cur.fetchone()
-                title_xpath = title_xpath[0]
-                cur.execute("SELECT xpath FROM t_spider_config_xpath WHERE name = %s", '快讯内容xpath')
-                content_xpath = cur.fetchone()
-                content_xpath = content_xpath[0]
 
                 try:
-                    release_time_list = html.xpath(release_time_xpath)
-                    title_list = html.xpath(title_xpath)
-                    content_list = html.xpath(content_xpath)
+                    release_time_list = get_xpath_content(html, '快讯发布时间xpath')
+                    title_list = get_xpath_content(html, '快讯标题xpath')
+                    content_list = get_xpath_content(html, '快讯内容xpath')
                 except IndexError:
                     print("xpath配置错误！")
                 except etree.XPathEvalError:
@@ -435,7 +715,7 @@ def get_express_info(url_list):
                 pdfkit.from_string(html_filter, pdf_file, configuration=confg)
                 time.sleep(sleep_time)
             else:
-                print('{} 栏目 第{} 页快讯 已爬取过且保存在数据库中！'.format(news_heading, page))
+                print('{} 栏目 第{}页快讯 已爬取过且保存在数据库中！'.format(news_heading, page))
         except IOError:
             print("Warning: wkhtmltopdf读取文件失败, 可能是网页无法打开或者图片/css样式丢失。")
         except IndexError:
@@ -444,15 +724,13 @@ def get_express_info(url_list):
 
         page += 1
 
-    print('{} 栏目下 共有{}条快讯'.format(news_heading, sum_i))
+    print('{} 栏目下 共有{}页 {}条快讯'.format(news_heading, page, sum_i))
 
 
 # 获取专题的各个详细页面html，并转成pdf格式保存
 def get_topic_info(url_dict):
     # 获取配置表的id，赋值给结果表
-    cur.execute("SELECT id FROM t_spider_conf WHERE domain = %s", spider_url)
-    conf_id = cur.fetchone()
-    conf_id = conf_id[0]
+    conf_id = get_conf_id()
 
     # 专题数累加器
     sum_i = 0
@@ -553,31 +831,61 @@ def sensitive_word_filter(content):
 
 
 def main():
-    # 获取所有的栏目链接
+    """
+    获取所有的栏目链接
+    all_news_urls[0-4]: 爬取的第一大类：新闻模块（包括综合新闻、教学科研、招生就业、交流合作、校园生活栏目）
+    all_news_urls[5]:爬取的第二大类：媒体重大
+    all_news_urls[6]:爬取的第三大类：通知公告简报
+    all_news_urls[7]:爬取的第四大类：学术预告
+    all_news_urls[8]:爬取的第五大类：快讯
+    all_news_urls[9]:爬取的第六大类：专题
+    """
     all_news_urls = all_urls_list()
 
     # 获取每个栏目下每页的链接
-    # 第一大类：新闻模块，第二大类：媒体重大，第三大类：通知公告简报，第四大类：学术预告, 第五大类：快讯
-    # for url in all_news_urls[:9]:
+    # 爬取的第一大类：新闻模块（包括综合新闻、教学科研、招生就业、交流合作、校园生活栏目）
+    # for url in all_news_urls[:5]:
     #     url_list = get_url_list(url, all_news_urls)
+    #     get_news_info(url_list)
+    #     time.sleep(sleep_time)
 
-    url = all_news_urls[8]
+    # 爬取的第二大类：媒体重大
+    # url = all_news_urls[5]
+    # url_list = get_url_list(url, all_news_urls)
+    # get_media_info(url_list)
+
+    # time.sleep(sleep_time)
+
+    # 爬取的第三大类：通知公告简报
+    url = all_news_urls[6]
     url_list = get_url_list(url, all_news_urls)
-    get_express_info(url_list)
+    get_notice_info(url_list)
 
-    time.sleep(sleep_time)
+    # time.sleep(sleep_time)
 
-    # 第六大类：专题，获取专题栏目下每个专题的页面链接
+    # 爬取的第四大类：学术预告
+    # url = all_news_urls[7]
+    # url_list = get_url_list(url, all_news_urls)
+    # get_academic_info(url_list)
+
+    # time.sleep(sleep_time)
+
+    # 爬取的第五大类：快讯
+    # url = all_news_urls[8]
+    # url_list = get_url_list(url, all_news_urls)
+    # get_express_info(url_list)
+    #
+    # time.sleep(sleep_time)
+
+    # 爬取的第六大类：专题。
     # url = all_news_urls[9]
     # url_dict = get_topic_url_list(url)
     # get_topic_info(url_dict)
-    # 爬取的第一大类：新闻模块（包括综合新闻、教学科研、招生就业、交流合作、校园生活栏目）
-    # 爬取的第二大类：媒体重大
-    # 爬取的第三大类：通知公告简报
-    # 爬取的第四大类：学术预告
-    # 爬取的第五大类：快讯
-    # 爬取的第六大类：专题
+
+    # time.sleep(sleep_time)
+
     print('{}的爬虫任务已完成！'.format(spider_url))
+
 
 if __name__ == '__main__':
     cur = conn.cursor()
