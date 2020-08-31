@@ -1258,47 +1258,48 @@ def main():
     all_news_urls[8]:爬取的第五大类：快讯
     all_news_urls[9]:爬取的第六大类：专题
     """
-    all_news_urls = all_urls_list()
+    with open('dict_data.txt', 'r+') as f_data:
+        all_news_urls = all_urls_list(f_data)
 
-    # 获取每个栏目下每页的链接
-    # 爬取的第一大类：新闻模块（包括综合新闻、教学科研、招生就业、交流合作、校园生活栏目）
-    for url in all_news_urls[:5]:
-        url_list = get_url_list(url, all_news_urls)
-        get_news_info(url_list, url, all_news_urls)
+        # 获取每个栏目下每页的链接
+        # 爬取的第一大类：新闻模块（包括综合新闻、教学科研、招生就业、交流合作、校园生活栏目）
+        for url in all_news_urls[:5]:
+            url_list = get_url_list(url, all_news_urls, f_data)
+            get_news_info(url_list, url, all_news_urls, f_data)
+            time.sleep(sleep_time)
+
+        # 爬取的第二大类：媒体重大
+        url = all_news_urls[5]
+        url_list = get_url_list(url, all_news_urls, f_data)
+        get_media_info(url_list, f_data)
+
         time.sleep(sleep_time)
 
-    # 爬取的第二大类：媒体重大
-    url = all_news_urls[5]
-    url_list = get_url_list(url, all_news_urls)
-    get_media_info(url_list)
+        # 爬取的第三大类：通知公告简报
+        url = all_news_urls[6]
+        url_list = get_url_list(url, all_news_urls, f_data)
+        get_notice_info(url_list, f_data)
 
-    time.sleep(sleep_time)
+        time.sleep(sleep_time)
 
-    # 爬取的第三大类：通知公告简报
-    url = all_news_urls[6]
-    url_list = get_url_list(url, all_news_urls)
-    get_notice_info(url_list)
+        # 爬取的第四大类：学术预告
+        url = all_news_urls[7]
+        url_list = get_url_list(url, all_news_urls, f_data)
+        get_academic_info(url_list, f_data)
 
-    time.sleep(sleep_time)
+        time.sleep(sleep_time)
 
-    # 爬取的第四大类：学术预告
-    url = all_news_urls[7]
-    url_list = get_url_list(url, all_news_urls)
-    get_academic_info(url_list)
+        # 爬取的第五大类：快讯
+        url = all_news_urls[8]
+        url_list = get_url_list(url, all_news_urls, f_data)
+        get_express_info(url_list, f_data)
 
-    time.sleep(sleep_time)
+        time.sleep(sleep_time)
 
-    # 爬取的第五大类：快讯
-    url = all_news_urls[8]
-    url_list = get_url_list(url, all_news_urls)
-    get_express_info(url_list)
-
-    time.sleep(sleep_time)
-
-    # 爬取的第六大类：专题。
-    url = all_news_urls[9]
-    url_dict = get_topic_url_list(url)
-    get_topic_info(url_dict)
+        # 爬取的第六大类：专题。
+        url = all_news_urls[9]
+        url_dict = get_topic_url_list(url, f_data)
+        get_topic_info(url_dict, f_data)
 
     time.sleep(sleep_time)
 
