@@ -1,4 +1,4 @@
-
+import time
 
 # AC自动机算法
 class node(object):
@@ -68,9 +68,14 @@ class ac_automation(object):
 
     # 加载敏感词库函数
     def parse(self, path):
-        with open(path,encoding='utf-8') as f:
-            for keyword in f:
-                self.addword(str(keyword).strip())
+        try:
+            with open(path,encoding='utf-8') as f:
+                for keyword in f:
+                    self.addword(str(keyword).strip())
+        except FileNotFoundError:
+            print('敏感词词典文件sensitive_words.txt未找到，请检查文件路径！')
+            time.sleep(5)
+
 
     # 敏感词替换函数
     def words_replace(self, text):
