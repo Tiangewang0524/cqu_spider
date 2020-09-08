@@ -37,7 +37,7 @@ conn = pymysql.connect(
 # mysql 插入
 # 插入spider结果表
 insert_result = '''
-INSERT INTO t_spider_result VALUES (NULL, %s, %s, %s, %s, %s, %s, %s, %s, %s, NULL)
+INSERT INTO t_spider_result VALUES (NULL, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NULL)
 '''
 
 # 全局字典变量，以键值对（键：对应URL，值：标题）形式存储爬取的数据记录。
@@ -94,21 +94,52 @@ def all_urls_list(f_data):
     content = f_data.read()
     if content:
         dict_data = json.loads(content)
+
+    heading = '重大新闻网'
+
     # 存储index的记录，放进字典和数据库，如果已经存在，则不存储
     judge = spider_url in dict_data.keys()
     if not judge:
-        dict_data[spider_url] = '重大新闻网'
+        dict_data[spider_url] = heading
+
+        # 创建文件夹
+        # 先判断文件夹是否存在，不存在则创建文件夹
+        now_dir = os.getcwd()
+        new_dir = now_dir + '\\' + heading + '首页'
+        dir_judge = os.path.exists(new_dir)
+        if not dir_judge:
+            os.mkdir(new_dir)
+
+        res = requests.get(spider_url, headers=headers)
+        res.encoding = 'UTF-8'
+        raw_html = res.text
+
+        html_filter = sensitive_word_filter(raw_html)
+        timestamp = round(time.time())
+        html_file = new_dir + '\\' + str(timestamp) + '.html'
+        pdf_file = new_dir + '\\' + str(timestamp) + '.pdf'
+
         # 获取配置表的id，赋值给结果表
         conf_id = get_conf_id('所有栏目')
 
         time_now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        cur.execute(insert_result, (conf_id, 'index', spider_url, '', '', '', time_now, '重大新闻网', ''))
+        cur.execute(insert_result, (conf_id, 'index', spider_url, html_filter, html_file, pdf_file, time_now, heading, None, ''))
         conn.commit()
         json_data = json.dumps(dict_data)
         f_data.seek(0, 0)
         f_data.write(json_data)
+
+        try:
+            with open(html_file, 'w+', encoding='UTF-8') as f1:
+                f1.write(html_filter)
+            # html转pdf
+            pdfkit.from_url(spider_url, pdf_file, configuration=confg)
+            print('《{}》 的首页已储存，转换pdf格式已成功。'.format(heading))
+            time.sleep(sleep_time)
+        except IOError:
+            print("Warning: wkhtmltopdf读取文件失败, 可能是网页无法打开或者图片/css样式丢失。")
     else:
-        print('该主页记录已爬取过且保存在数据库中！')
+        print('{} 首页记录已爬取过且保存在数据库中！'.format(heading))
 
     r = requests.get(spider_url, headers=headers)
     r.encoding = 'UTF-8'
@@ -181,7 +212,6 @@ def get_url_list(url, all_urls, f_data):
             print("数据库里未找到记录！")
         temp_url = url + '?page=1'
 
-
     # 查找最大页数
     page = html.xpath('/html/body/div[@class="row"]/div/div[@class="lists"]/div[@class="page"]/a[12]/text()')
     page = ''.join(page)
@@ -193,15 +223,43 @@ def get_url_list(url, all_urls, f_data):
     judge = temp_url in dict_data.keys()
     if not judge:
         dict_data[temp_url] = news_heading
+
+        # 创建文件夹
+        # 先判断文件夹是否存在，不存在则创建文件夹
+        now_dir = os.getcwd()
+        new_dir = now_dir + '\\' + news_heading
+        dir_judge = os.path.exists(new_dir)
+        if not dir_judge:
+            os.mkdir(new_dir)
+
+        res = requests.get(temp_url, headers=headers)
+        res.encoding = 'UTF-8'
+        raw_html = res.text
+
+        html_filter = sensitive_word_filter(raw_html)
+        timestamp = round(time.time())
+        html_file = new_dir + '\\' + str(timestamp) + '.html'
+        pdf_file = new_dir + '\\' + str(timestamp) + '.pdf'
+
         # 获取配置表的id，赋值给结果表
         conf_id = get_conf_id(news_heading)
 
         time_now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        cur.execute(insert_result, (conf_id, 'list', temp_url, '', '', '', time_now, news_heading, ''))
+        cur.execute(insert_result, (conf_id, 'list', temp_url, html_filter, html_file, pdf_file, time_now, news_heading, None, ''))
         conn.commit()
         json_data = json.dumps(dict_data)
         f_data.seek(0, 0)
         f_data.write(json_data)
+
+        try:
+            with open(html_file, 'w+', encoding='UTF-8') as f1:
+                f1.write(html_filter)
+            # html转pdf
+            pdfkit.from_url(temp_url, pdf_file, configuration=confg)
+            print('栏目 《{}》 的首页已储存，转换pdf格式已成功。'.format(news_heading))
+            time.sleep(sleep_time)
+        except IOError:
+            print("Warning: wkhtmltopdf读取文件失败, 可能是网页无法打开或者图片/css样式丢失。")
     else:
         print('{} 栏目 首页记录已爬取过且保存在数据库中！'.format(news_heading))
 
@@ -239,15 +297,43 @@ def get_topic_url_list(url, f_data):
     judge = url in dict_data.keys()
     if not judge:
         dict_data[url] = news_heading
+
+        # 创建文件夹
+        # 先判断文件夹是否存在，不存在则创建文件夹
+        now_dir = os.getcwd()
+        new_dir = now_dir + '\\' + news_heading
+        dir_judge = os.path.exists(new_dir)
+        if not dir_judge:
+            os.mkdir(new_dir)
+
+        res = requests.get(url, headers=headers)
+        res.encoding = 'UTF-8'
+        raw_html = res.text
+
+        html_filter = sensitive_word_filter(raw_html)
+        timestamp = round(time.time())
+        html_file = new_dir + '\\' + str(timestamp) + '.html'
+        pdf_file = new_dir + '\\' + str(timestamp) + '.pdf'
+
         # 获取配置表的id，赋值给结果表
         conf_id = get_conf_id(news_heading)
 
         time_now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        cur.execute(insert_result, (conf_id, 'list', url, '', '', '', time_now, news_heading, ''))
+        cur.execute(insert_result, (conf_id, 'list', url, html_filter, html_file, pdf_file, time_now, news_heading, None, ''))
         conn.commit()
         json_data = json.dumps(dict_data)
         f_data.seek(0, 0)
         f_data.write(json_data)
+
+        try:
+            with open(html_file, 'w+', encoding='UTF-8') as f1:
+                f1.write(html_filter)
+            # html转pdf
+            pdfkit.from_url(url, pdf_file, configuration=confg)
+            print('栏目 《{}》 的主页已储存，转换pdf格式已成功。'.format(news_heading))
+            time.sleep(sleep_time)
+        except IOError:
+            print("Warning: wkhtmltopdf读取文件失败, 可能是网页无法打开或者图片/css样式丢失。")
     else:
         print('{} 栏目 主页记录已爬取过且保存在数据库中！'.format(news_heading))
 
@@ -387,6 +473,11 @@ def get_news_info(url_list, module_url, all_urls, f_data):
                     dict_news['采集时间'] = time_now
                     dict_news['采集人'] = '档案馆'
 
+                    if dict_news['发布时间']:
+                        release_time = dict_news['发布时间']
+                    else:
+                        release_time = None
+
                     json_dict = json.dumps(dict_news, ensure_ascii=False, indent=4)
                     print(json_dict)
 
@@ -394,7 +485,7 @@ def get_news_info(url_list, module_url, all_urls, f_data):
                     # 判断网页是不是404 not found
                     if judge_identifier:
                         cur.execute(insert_result, (conf_id, 'detail', each_url, html_filter, html_file, pdf_file,
-                                                    time_now, news_heading, json_dict))
+                                                    time_now, news_heading, release_time, json_dict))
                         conn.commit()
                         json_data = json.dumps(dict_data)
                         f_data.seek(0, 0)
@@ -412,7 +503,7 @@ def get_news_info(url_list, module_url, all_urls, f_data):
                         # 将404 not found 记录进数据库
                         html_filter = '404 not found'
                         cur.execute(insert_result, (conf_id, 'detail', each_url, html_filter, '', '',
-                                                    time_now, news_heading, json_dict))
+                                                    time_now, news_heading, None, json_dict))
                         conn.commit()
                         json_data = json.dumps(dict_data)
                         f_data.seek(0, 0)
@@ -551,7 +642,7 @@ def get_media_info(url_list, f_data):
                     # 判断网页是不是404 not found
                     if judge_identifier:
                         cur.execute(insert_result, (conf_id, 'detail', each_url, html_filter, html_file, pdf_file,
-                                                    time_now, news_heading, json_dict))
+                                                    time_now, news_heading, None, json_dict))
                         conn.commit()
                         json_data = json.dumps(dict_data)
                         f_data.seek(0, 0)
@@ -569,7 +660,7 @@ def get_media_info(url_list, f_data):
                         # 将404 not found 记录进数据库
                         html_filter = '404 not found'
                         cur.execute(insert_result, (conf_id, 'detail', each_url, html_filter, '', '',
-                                                    time_now, news_heading, json_dict))
+                                                    time_now, news_heading, None, json_dict))
                         conn.commit()
                         json_data = json.dumps(dict_data)
                         f_data.seek(0, 0)
@@ -677,10 +768,15 @@ def get_notice_info(url_list, f_data):
                     dict_notice['标题'] = title
                     dict_notice['网址'] = each_url
 
-
                     time_now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                     dict_notice['采集时间'] = time_now
                     dict_notice['采集人'] = '档案馆'
+
+                    if dict_notice['发布时间']:
+                        release_time = dict_notice['发布时间']
+                    else:
+                        release_time = None
+
                     json_dict = json.dumps(dict_notice, ensure_ascii=False, indent=4)
                     print(json_dict)
 
@@ -688,7 +784,7 @@ def get_notice_info(url_list, f_data):
                     # 判断网页是不是404 not found
                     if judge_identifier:
                         cur.execute(insert_result, (conf_id, 'detail', each_url, html_filter, html_file, pdf_file,
-                                                    time_now, news_heading, json_dict))
+                                                    time_now, news_heading, release_time, json_dict))
                         conn.commit()
                         json_data = json.dumps(dict_data)
                         f_data.seek(0, 0)
@@ -706,7 +802,7 @@ def get_notice_info(url_list, f_data):
                         # 将404 not found 记录进数据库
                         html_filter = '404 not found'
                         cur.execute(insert_result, (conf_id, 'detail', each_url, html_filter, '', '',
-                                                    time_now, news_heading, json_dict))
+                                                    time_now, news_heading, None, json_dict))
                         conn.commit()
                         json_data = json.dumps(dict_data)
                         f_data.seek(0, 0)
@@ -822,7 +918,7 @@ def get_academic_info(url_list, f_data):
                     # 判断网页是不是404 not found
                     if judge_identifier:
                         cur.execute(insert_result, (conf_id, 'detail', each_url, html_filter, html_file, pdf_file,
-                                                    time_now, news_heading, json_dict))
+                                                    time_now, news_heading, None, json_dict))
                         conn.commit()
                         json_data = json.dumps(dict_data)
                         f_data.seek(0, 0)
@@ -840,7 +936,7 @@ def get_academic_info(url_list, f_data):
                         # 将404 not found 记录进数据库
                         html_filter = '404 not found'
                         cur.execute(insert_result, (conf_id, 'detail', each_url, html_filter, '', '',
-                                                    time_now, news_heading, json_dict))
+                                                    time_now, news_heading, None, json_dict))
                         conn.commit()
                         json_data = json.dumps(dict_data)
                         f_data.seek(0, 0)
@@ -977,7 +1073,7 @@ def get_express_info(url_list, f_data):
                     json_dict = json.dumps(dict_express, ensure_ascii=False, indent=4)
                     print(json_dict)
                     cur.execute(insert_result, (conf_id, 'detail', url, html_filter, html_file, pdf_file,
-                                                time_now, news_heading, json_dict))
+                                                time_now, news_heading, None, json_dict))
                     conn.commit()
 
                     sum_i += 1
@@ -1060,7 +1156,7 @@ def get_topic_info(url_dict, f_data):
                     json_dict = json.dumps(dict_topic, ensure_ascii=False, indent=4)
                     print(json_dict)
                     cur.execute(insert_result, (conf_id, 'detail', value, html_filter, html_file, pdf_file,
-                                                time_now, news_heading, json_dict))
+                                                time_now, news_heading, None, json_dict))
                     json_data = json.dumps(dict_data)
                     f_data.seek(0, 0)
                     f_data.write(json_data)
@@ -1078,7 +1174,7 @@ def get_topic_info(url_dict, f_data):
                     html_filter = '404 not found'
                     time_now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                     cur.execute(insert_result,
-                                (conf_id, 'detail', value, html_filter, '', '', time_now, key, ''))
+                                (conf_id, 'detail', value, html_filter, '', '', time_now, news_heading, None, ''))
                     conn.commit()
                     json_data = json.dumps(dict_data)
                     f_data.seek(0, 0)
@@ -1205,9 +1301,9 @@ def main():
     print('{}的爬虫任务已完成！'.format(spider_url))
 
 
-if __name__ == '__main__':
-    cur = conn.cursor()
+cur = conn.cursor()
 
+if __name__ == '__main__':
     main()
     # 爬虫结束，更新爬虫状态为-1，停止
     cur.execute("UPDATE t_spider_task SET status = -1 WHERE id = %s", task_id)
