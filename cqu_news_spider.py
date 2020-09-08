@@ -43,9 +43,12 @@ INSERT INTO t_spider_result VALUES (NULL, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
 # 全局字典变量，以键值对（键：对应URL，值：标题）形式存储爬取的数据记录。
 dict_data = dict()
 
-# pdfkit配置
+# pdfkit配置及设置
 confg = pdfkit.configuration(wkhtmltopdf=r'C:\Program Files\wkhtmltopdf\bin\wkhtmltopdf.exe')
-
+options = {
+    'page-size': 'A4',
+    'viewport-size': 1920*1080
+}
 
 # 伪装http请求头部
 headers = {
@@ -115,6 +118,7 @@ def all_urls_list(f_data):
         raw_html = res.text
 
         html_filter = sensitive_word_filter(raw_html)
+        html_filter = path_rewrite(html_filter)
         timestamp = round(time.time())
         html_file = new_dir + '\\' + str(timestamp) + '.html'
         pdf_file = new_dir + '\\' + str(timestamp) + '.pdf'
@@ -123,7 +127,7 @@ def all_urls_list(f_data):
         conf_id = get_conf_id('所有栏目')
 
         time_now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        cur.execute(insert_result, (conf_id, 'index', spider_url, html_filter, html_file, pdf_file, time_now, heading, None, ''))
+        cur.execute(insert_result, (conf_id, 'index', spider_url, html_filter, html_file, pdf_file, time_now, heading + '首页', None, ''))
         conn.commit()
         json_data = json.dumps(dict_data)
         f_data.seek(0, 0)
@@ -133,7 +137,7 @@ def all_urls_list(f_data):
             with open(html_file, 'w+', encoding='UTF-8') as f1:
                 f1.write(html_filter)
             # html转pdf
-            pdfkit.from_url(spider_url, pdf_file, configuration=confg)
+            pdfkit.from_url(spider_url, pdf_file, configuration=confg, options=options)
             print('《{}》 的首页已储存，转换pdf格式已成功。'.format(heading))
             time.sleep(sleep_time)
         except IOError:
@@ -237,6 +241,7 @@ def get_url_list(url, all_urls, f_data):
         raw_html = res.text
 
         html_filter = sensitive_word_filter(raw_html)
+        html_filter = path_rewrite(html_filter)
         timestamp = round(time.time())
         html_file = new_dir + '\\' + str(timestamp) + '.html'
         pdf_file = new_dir + '\\' + str(timestamp) + '.pdf'
@@ -255,7 +260,7 @@ def get_url_list(url, all_urls, f_data):
             with open(html_file, 'w+', encoding='UTF-8') as f1:
                 f1.write(html_filter)
             # html转pdf
-            pdfkit.from_url(temp_url, pdf_file, configuration=confg)
+            pdfkit.from_url(temp_url, pdf_file, configuration=confg, options=options)
             print('栏目 《{}》 的首页已储存，转换pdf格式已成功。'.format(news_heading))
             time.sleep(sleep_time)
         except IOError:
@@ -311,6 +316,7 @@ def get_topic_url_list(url, f_data):
         raw_html = res.text
 
         html_filter = sensitive_word_filter(raw_html)
+        html_filter = path_rewrite(html_filter)
         timestamp = round(time.time())
         html_file = new_dir + '\\' + str(timestamp) + '.html'
         pdf_file = new_dir + '\\' + str(timestamp) + '.pdf'
@@ -329,7 +335,7 @@ def get_topic_url_list(url, f_data):
             with open(html_file, 'w+', encoding='UTF-8') as f1:
                 f1.write(html_filter)
             # html转pdf
-            pdfkit.from_url(url, pdf_file, configuration=confg)
+            pdfkit.from_url(url, pdf_file, configuration=confg, options=options)
             print('栏目 《{}》 的主页已储存，转换pdf格式已成功。'.format(news_heading))
             time.sleep(sleep_time)
         except IOError:
@@ -366,6 +372,11 @@ def get_topic_url_list(url, f_data):
         print("数据库里未找到记录！")
 
     return url_dict
+
+
+# 保存栏目列表页（需要每年的1月1日和7月1日），并存在数据库中
+def save_index():
+    pass
 
 
 # 读取新闻模块每个页面的url，获取新闻模块的每条新闻的归档元数据，并将页面转成pdf格式保存
@@ -495,7 +506,7 @@ def get_news_info(url_list, module_url, all_urls, f_data):
                         with open(html_file, 'w+', encoding='UTF-8') as f1:
                             f1.write(html_filter)
                         # html转pdf
-                        pdfkit.from_url(each_url, pdf_file, configuration=confg)
+                        pdfkit.from_url(each_url, pdf_file, configuration=confg, options=options)
                         print('该新闻《{}》pdf格式已转换成功。'.format(title))
                         time.sleep(sleep_time)
 
@@ -652,7 +663,7 @@ def get_media_info(url_list, f_data):
                         with open(html_file, 'w+', encoding='UTF-8') as f1:
                             f1.write(html_filter)
                         # html转pdf
-                        pdfkit.from_url(each_url, pdf_file, configuration=confg)
+                        pdfkit.from_url(each_url, pdf_file, configuration=confg, options=options)
                         print('该新闻《{}》pdf格式已转换成功。'.format(title))
                         time.sleep(sleep_time)
 
@@ -794,7 +805,7 @@ def get_notice_info(url_list, f_data):
                         with open(html_file, 'w+', encoding='UTF-8') as f1:
                             f1.write(html_filter)
                         # html转pdf
-                        pdfkit.from_url(each_url, pdf_file, configuration=confg)
+                        pdfkit.from_url(each_url, pdf_file, configuration=confg, options=options)
                         print('该通知《{}》pdf格式已转换成功。'.format(title))
                         time.sleep(sleep_time)
 
@@ -929,7 +940,7 @@ def get_academic_info(url_list, f_data):
                         with open(html_file, 'w+', encoding='UTF-8') as f1:
                             f1.write(html_filter)
                         # html转pdf
-                        pdfkit.from_url(each_url, pdf_file, configuration=confg)
+                        pdfkit.from_url(each_url, pdf_file, configuration=confg, options=options)
                         print('该讲座预告《{}》pdf格式已转换成功。'.format(title))
                         time.sleep(sleep_time)
                     else:
@@ -1081,7 +1092,7 @@ def get_express_info(url_list, f_data):
                 with open(html_file, 'w+', encoding='UTF-8') as f1:
                     f1.write(html_filter)
                 # html转pdf
-                pdfkit.from_string(html_filter, pdf_file, configuration=confg)
+                pdfkit.from_string(html_filter, pdf_file, configuration=confg, options=options)
                 print('快讯第 {} 页pdf格式已转换成功。'.format(page))
                 time.sleep(sleep_time)
             else:
@@ -1165,7 +1176,7 @@ def get_topic_info(url_dict, f_data):
                     with open(html_file, 'w+', encoding='UTF-8') as f1:
                         f1.write(html_filter)
                     # html转pdf
-                    pdfkit.from_url(value, pdf_file, configuration=confg)
+                    pdfkit.from_url(value, pdf_file, configuration=confg, options=options)
                     print('该专题《{}》pdf格式已转换成功。'.format(key))
                     time.sleep(sleep_time)
 
@@ -1298,7 +1309,7 @@ def main():
 
     time.sleep(sleep_time)
 
-    print('{}的爬虫任务已完成！'.format(spider_url))
+    print('{} {} 的爬虫任务已完成！'.format(spider_name, spider_url))
 
 
 cur = conn.cursor()
