@@ -16,13 +16,18 @@ import Ac_auto
 
 # 任务id
 task_id = 2
+
 # 爬取的地址和名称
 spider_url = 'https://news.cqu.edu.cn/newsv2/'
 spider_name = '重大新闻网'
-# 每页最大爬取新闻数
-# i_news = 1
+
+# 爬虫程序爬取主页和首页的运行日期
+spider_month = [9]
+spider_day = [9]
+
 # 睡眠时间
 sleep_time = 0.1
+
 # mysql登录信息
 conn = pymysql.connect(
     host='localhost',
@@ -98,52 +103,63 @@ def all_urls_list(f_data):
     if content:
         dict_data = json.loads(content)
 
-    heading = '重大新闻网'
+    heading = '新闻网'
 
-    # 存储index的记录，放进字典和数据库，如果已经存在，则不存储
-    judge = spider_url in dict_data.keys()
-    if not judge:
-        dict_data[spider_url] = heading
+    # 根据时间需求爬取主页及各级首页，需求：1月1日和7月1日各爬取一次，其他时间不做爬取
+    run_date = datetime.date.today()
+    if run_date.month in spider_month and run_date.day in spider_day:
+        print('正在爬取 {} 主页。'.format(spider_name))
+        # 存储index的记录，放进字典和数据库，如果已经存在，则不存储
+        judge = spider_url in dict_data.keys()
+        if not judge:
+            dict_data[spider_url] = heading
 
-        # 创建文件夹
-        # 先判断文件夹是否存在，不存在则创建文件夹
-        now_dir = os.getcwd()
-        new_dir = now_dir + '\\' + heading + '首页'
-        dir_judge = os.path.exists(new_dir)
-        if not dir_judge:
-            os.mkdir(new_dir)
+            # 创建文件夹
+            # 先判断文件夹是否存在，不存在则创建文件夹
+            now_dir = os.getcwd()
+            new_dir = now_dir + '\\' + heading + '首页'
+            dir_judge = os.path.exists(new_dir)
+            if not dir_judge:
+                os.mkdir(new_dir)
 
-        res = requests.get(spider_url, headers=headers)
-        res.encoding = 'UTF-8'
-        raw_html = res.text
+            res = requests.get(spider_url, headers=headers)
+            res.encoding = 'UTF-8'
+            raw_html = res.text
 
-        html_filter = sensitive_word_filter(raw_html)
-        html_filter = path_rewrite(html_filter)
-        timestamp = round(time.time())
-        html_file = new_dir + '\\' + str(timestamp) + '.html'
-        pdf_file = new_dir + '\\' + str(timestamp) + '.pdf'
+            html_filter = sensitive_word_filter(raw_html)
+            html_filter = path_rewrite(html_filter)
+            timestamp = round(time.time())
+            html_file = new_dir + '\\' + str(timestamp) + '.html'
+            pdf_file = new_dir + '\\' + str(timestamp) + '.pdf'
 
-        # 获取配置表的id，赋值给结果表
-        conf_id = get_conf_id('所有栏目')
+            # 获取配置表的id，赋值给结果表
+            conf_id = get_conf_id('所有栏目')
 
-        time_now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        cur.execute(insert_result, (conf_id, 'index', spider_url, html_filter, html_file, pdf_file, time_now, heading + '首页', None, ''))
-        conn.commit()
-        json_data = json.dumps(dict_data)
-        f_data.seek(0, 0)
-        f_data.write(json_data)
+            time_now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            cur.execute(insert_result, (conf_id, 'index', spider_url, html_filter, html_file, pdf_file, time_now, heading, run_date, ''))
+            conn.commit()
+            json_data = json.dumps(dict_data)
+            f_data.seek(0, 0)
+            f_data.write(json_data)
 
-        try:
-            with open(html_file, 'w+', encoding='UTF-8') as f1:
-                f1.write(html_filter)
-            # html转pdf
-            pdfkit.from_url(spider_url, pdf_file, configuration=confg, options=options)
-            print('《{}》 的首页已储存，转换pdf格式已成功。'.format(heading))
-            time.sleep(sleep_time)
-        except IOError:
-            print("Warning: wkhtmltopdf读取文件失败, 可能是网页无法打开或者图片/css样式丢失。")
+            try:
+                with open(html_file, 'w+', encoding='UTF-8') as f1:
+                    f1.write(html_filter)
+                # html转pdf
+                pdfkit.from_url(spider_url, pdf_file, configuration=confg, options=options)
+                print('《{}》 的首页已储存，转换pdf格式已成功。'.format(heading))
+                time.sleep(sleep_time)
+            except IOError:
+                print("Warning: wkhtmltopdf读取文件失败, 可能是网页无法打开或者图片/css样式丢失。")
+        else:
+            print('{} 首页记录已爬取过且保存在数据库中！'.format(heading))
+
     else:
-        print('{} 首页记录已爬取过且保存在数据库中！'.format(heading))
+        print('爬虫程序启动日期并非 ', end='')
+        for month in spider_month:
+            for day in spider_day:
+                print('{} 月 {} 日, '.format(month, day), end='')
+        print('{} 主页不做爬取！'.format(spider_name))
 
     r = requests.get(spider_url, headers=headers)
     r.encoding = 'UTF-8'
@@ -223,50 +239,62 @@ def get_url_list(url, all_urls, f_data):
 
     max_page = int(page)
 
-    # 存储list第一页的记录，放进字典和数据库，如果已经存在，则不存储
-    judge = temp_url in dict_data.keys()
-    if not judge:
-        dict_data[temp_url] = news_heading
+    # 根据时间需求爬取主页及各级首页，需求：1月1日和7月1日各爬取一次，其他时间不做爬取
+    run_date = datetime.date.today()
+    if run_date.month in spider_month and run_date.day in spider_day:
+        list_heading = '各级首页'
+        print('正在爬取 {} 栏目首页。'.format(news_heading))
+        # 存储list第一页的记录，放进字典和数据库，如果已经存在，则不存储
+        judge = temp_url in dict_data.keys()
+        if not judge:
+            dict_data[temp_url] = list_heading
 
-        # 创建文件夹
-        # 先判断文件夹是否存在，不存在则创建文件夹
-        now_dir = os.getcwd()
-        new_dir = now_dir + '\\' + news_heading
-        dir_judge = os.path.exists(new_dir)
-        if not dir_judge:
-            os.mkdir(new_dir)
+            # 创建文件夹
+            # 先判断文件夹是否存在，不存在则创建文件夹
+            now_dir = os.getcwd()
+            new_dir = now_dir + '\\' + news_heading
+            dir_judge = os.path.exists(new_dir)
+            if not dir_judge:
+                os.mkdir(new_dir)
 
-        res = requests.get(temp_url, headers=headers)
-        res.encoding = 'UTF-8'
-        raw_html = res.text
+            res = requests.get(temp_url, headers=headers)
+            res.encoding = 'UTF-8'
+            raw_html = res.text
 
-        html_filter = sensitive_word_filter(raw_html)
-        html_filter = path_rewrite(html_filter)
-        timestamp = round(time.time())
-        html_file = new_dir + '\\' + str(timestamp) + '.html'
-        pdf_file = new_dir + '\\' + str(timestamp) + '.pdf'
+            html_filter = sensitive_word_filter(raw_html)
+            html_filter = path_rewrite(html_filter)
+            timestamp = round(time.time())
+            html_file = new_dir + '\\' + str(timestamp) + '.html'
+            pdf_file = new_dir + '\\' + str(timestamp) + '.pdf'
 
-        # 获取配置表的id，赋值给结果表
-        conf_id = get_conf_id(news_heading)
+            # 获取配置表的id，赋值给结果表
+            conf_id = get_conf_id(news_heading)
 
-        time_now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        cur.execute(insert_result, (conf_id, 'list', temp_url, html_filter, html_file, pdf_file, time_now, news_heading, None, ''))
-        conn.commit()
-        json_data = json.dumps(dict_data)
-        f_data.seek(0, 0)
-        f_data.write(json_data)
+            time_now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            cur.execute(insert_result, (conf_id, 'list', temp_url, html_filter, html_file, pdf_file, time_now, list_heading, run_date, ''))
+            conn.commit()
+            json_data = json.dumps(dict_data)
+            f_data.seek(0, 0)
+            f_data.write(json_data)
 
-        try:
-            with open(html_file, 'w+', encoding='UTF-8') as f1:
-                f1.write(html_filter)
-            # html转pdf
-            pdfkit.from_url(temp_url, pdf_file, configuration=confg, options=options)
-            print('栏目 《{}》 的首页已储存，转换pdf格式已成功。'.format(news_heading))
-            time.sleep(sleep_time)
-        except IOError:
-            print("Warning: wkhtmltopdf读取文件失败, 可能是网页无法打开或者图片/css样式丢失。")
+            try:
+                with open(html_file, 'w+', encoding='UTF-8') as f1:
+                    f1.write(html_filter)
+                # html转pdf
+                pdfkit.from_url(temp_url, pdf_file, configuration=confg, options=options)
+                print('栏目 《{}》 的首页已储存，转换pdf格式已成功。'.format(news_heading))
+                time.sleep(sleep_time)
+            except IOError:
+                print("Warning: wkhtmltopdf读取文件失败, 可能是网页无法打开或者图片/css样式丢失。")
+        else:
+            print('{} 栏目 首页记录已爬取过且保存在数据库中！'.format(news_heading))
+
     else:
-        print('{} 栏目 首页记录已爬取过且保存在数据库中！'.format(news_heading))
+        print('爬虫程序启动日期并非 ', end='')
+        for month in spider_month:
+            for day in spider_day:
+                print('{} 月 {} 日, '.format(month, day), end='')
+        print('{} 栏目首页不做爬取！'.format(news_heading))
 
     # 对 快讯板块做处理：
     if url == 'https://news.cqu.edu.cn/newsv2/list-15.html':
@@ -298,50 +326,62 @@ def get_topic_url_list(url, f_data):
 
     news_heading = '专题'
 
-    # 存储专题list的记录，放进字典和数据库，如果已经存在，则不存储
-    judge = url in dict_data.keys()
-    if not judge:
-        dict_data[url] = news_heading
+    # 根据时间需求爬取主页及各级首页，需求：1月1日和7月1日各爬取一次，其他时间不做爬取
+    run_date = datetime.date.today()
+    if run_date.month in spider_month and run_date.day in spider_day:
+        list_heading = '各级首页'
+        print('正在爬取 {} 栏目首页。'.format(news_heading))
+        # 存储专题list的记录，放进字典和数据库，如果已经存在，则不存储
+        judge = url in dict_data.keys()
+        if not judge:
+            dict_data[url] = list_heading
 
-        # 创建文件夹
-        # 先判断文件夹是否存在，不存在则创建文件夹
-        now_dir = os.getcwd()
-        new_dir = now_dir + '\\' + news_heading
-        dir_judge = os.path.exists(new_dir)
-        if not dir_judge:
-            os.mkdir(new_dir)
+            # 创建文件夹
+            # 先判断文件夹是否存在，不存在则创建文件夹
+            now_dir = os.getcwd()
+            new_dir = now_dir + '\\' + news_heading
+            dir_judge = os.path.exists(new_dir)
+            if not dir_judge:
+                os.mkdir(new_dir)
 
-        res = requests.get(url, headers=headers)
-        res.encoding = 'UTF-8'
-        raw_html = res.text
+            res = requests.get(url, headers=headers)
+            res.encoding = 'UTF-8'
+            raw_html = res.text
 
-        html_filter = sensitive_word_filter(raw_html)
-        html_filter = path_rewrite(html_filter)
-        timestamp = round(time.time())
-        html_file = new_dir + '\\' + str(timestamp) + '.html'
-        pdf_file = new_dir + '\\' + str(timestamp) + '.pdf'
+            html_filter = sensitive_word_filter(raw_html)
+            html_filter = path_rewrite(html_filter)
+            timestamp = round(time.time())
+            html_file = new_dir + '\\' + str(timestamp) + '.html'
+            pdf_file = new_dir + '\\' + str(timestamp) + '.pdf'
 
-        # 获取配置表的id，赋值给结果表
-        conf_id = get_conf_id(news_heading)
+            # 获取配置表的id，赋值给结果表
+            conf_id = get_conf_id(news_heading)
 
-        time_now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        cur.execute(insert_result, (conf_id, 'list', url, html_filter, html_file, pdf_file, time_now, news_heading, None, ''))
-        conn.commit()
-        json_data = json.dumps(dict_data)
-        f_data.seek(0, 0)
-        f_data.write(json_data)
+            time_now = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            cur.execute(insert_result, (conf_id, 'list', url, html_filter, html_file, pdf_file, time_now, list_heading, run_date, ''))
+            conn.commit()
+            json_data = json.dumps(dict_data)
+            f_data.seek(0, 0)
+            f_data.write(json_data)
 
-        try:
-            with open(html_file, 'w+', encoding='UTF-8') as f1:
-                f1.write(html_filter)
-            # html转pdf
-            pdfkit.from_url(url, pdf_file, configuration=confg, options=options)
-            print('栏目 《{}》 的主页已储存，转换pdf格式已成功。'.format(news_heading))
-            time.sleep(sleep_time)
-        except IOError:
-            print("Warning: wkhtmltopdf读取文件失败, 可能是网页无法打开或者图片/css样式丢失。")
+            try:
+                with open(html_file, 'w+', encoding='UTF-8') as f1:
+                    f1.write(html_filter)
+                # html转pdf
+                pdfkit.from_url(url, pdf_file, configuration=confg, options=options)
+                print('栏目 《{}》 的主页已储存，转换pdf格式已成功。'.format(news_heading))
+                time.sleep(sleep_time)
+            except IOError:
+                print("Warning: wkhtmltopdf读取文件失败, 可能是网页无法打开或者图片/css样式丢失。")
+        else:
+            print('{} 栏目 主页记录已爬取过且保存在数据库中！'.format(news_heading))
+
     else:
-        print('{} 栏目 主页记录已爬取过且保存在数据库中！'.format(news_heading))
+        print('爬虫程序启动日期并非 ', end='')
+        for month in spider_month:
+            for day in spider_day:
+                print('{} 月 {} 日, '.format(month, day), end='')
+        print('{} 栏目首页不做爬取！'.format(news_heading))
 
     try:
         topic_urls_list = get_xpath_content(html, '专题网址xpath')
@@ -372,11 +412,6 @@ def get_topic_url_list(url, f_data):
         print("数据库里未找到记录！")
 
     return url_dict
-
-
-# 保存栏目列表页（需要每年的1月1日和7月1日），并存在数据库中
-def save_index():
-    pass
 
 
 # 读取新闻模块每个页面的url，获取新闻模块的每条新闻的归档元数据，并将页面转成pdf格式保存
@@ -1097,6 +1132,7 @@ def get_express_info(url_list, f_data):
                 time.sleep(sleep_time)
             else:
                 print('{} 栏目 第{}页快讯 已爬取过且保存在数据库中！'.format(news_heading, page))
+                sum_i += 20
         except IOError:
             print("Warning: wkhtmltopdf读取文件失败, 可能是网页无法打开或者图片/css样式丢失。")
         except IndexError:
