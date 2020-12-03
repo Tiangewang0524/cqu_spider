@@ -1,2 +1,13 @@
 # cqu_spider
- 重庆大学新闻网爬虫项目
+## 重庆大学新闻网爬虫项目
+
+由于涉及到在不同系统下应用程序的不同，所以分成两个py文件
+
+cqu_news_spider.py 用于Windows上运行
+
+news_cqu.py 用于Linux运行
+
+
+
+后面带_year的可以指定爬取的年份，指令为：
+python cqu_news_spider_year.py 指定年份
