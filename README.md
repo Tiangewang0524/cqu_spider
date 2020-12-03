@@ -1,7 +1,7 @@
 # cqu_spider
 ## 重庆大学新闻网爬虫项目
 
-由于涉及到在不同系统下应用程序的不同，所以分成两个py文件
+由于涉及到pdfkit库的核心应用程序wkhtmltopdf在不同系统下的格式不同，所以分成两个py文件
 
 cqu_news_spider.py 用于Windows上运行
 
